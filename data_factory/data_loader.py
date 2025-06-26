@@ -36,7 +36,11 @@ class PSMSegLoader(object):
         self.train = data
         self.val = self.test
 
-        self.test_labels = pd.read_csv(data_path + '/test_label.csv').values[:, 1:]
+        test_label_path = os.path.join(data_path, 'test_label.csv')
+        if os.path.exists(test_label_path):
+            self.test_labels = pd.read_csv(test_label_path).values[:, 1:]
+        else:
+            self.test_labels = None
 
         print("test:", self.test.shape)
         print("train:", self.train.shape)
@@ -57,16 +61,22 @@ class PSMSegLoader(object):
     def __getitem__(self, index):
         index = index * self.step
         if self.mode == "train":
-            return np.float32(self.train[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
+            return np.float32(self.train[index:index + self.win_size]), (
+                np.float32(self.test_labels[0:self.win_size]) if self.test_labels is not None else np.zeros((self.win_size, 1), dtype=np.float32)
+            )
         elif (self.mode == 'val'):
-            return np.float32(self.val[index:index + self.win_size]), np.float32(self.test_labels[0:self.win_size])
+            return np.float32(self.val[index:index + self.win_size]), (
+                np.float32(self.test_labels[0:self.win_size]) if self.test_labels is not None else np.zeros((self.win_size, 1), dtype=np.float32)
+            )
         elif (self.mode == 'test'):
-            return np.float32(self.test[index:index + self.win_size]), np.float32(
-                self.test_labels[index:index + self.win_size])
+            return np.float32(self.test[index:index + self.win_size]), (
+                np.float32(self.test_labels[index:index + self.win_size]) if self.test_labels is not None else np.zeros((self.win_size, 1), dtype=np.float32)
+            )
         else:
-            return np.float32(self.test[
-                              index // self.step * self.win_size:index // self.step * self.win_size + self.win_size]), np.float32(
-                self.test_labels[index // self.step * self.win_size:index // self.step * self.win_size + self.win_size])
+            idx = index // self.step * self.win_size
+            return np.float32(self.test[idx:idx + self.win_size]), (
+                np.float32(self.test_labels[idx:idx + self.win_size]) if self.test_labels is not None else np.zeros((self.win_size, 1), dtype=np.float32)
+            )
 
 
 class MSLSegLoader(object):

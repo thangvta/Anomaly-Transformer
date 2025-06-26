@@ -7,6 +7,7 @@ import time
 from utils.utils import *
 from model.AnomalyTransformer import AnomalyTransformer
 from data_factory.data_loader import get_loader_segment
+import matplotlib.pyplot as plt
 
 
 def my_kl_loss(p, q):
@@ -291,11 +292,13 @@ class Solver(object):
         # (3) evaluation on the test set
         test_labels = []
         attens_energy = []
+        test_losses = []  # For plotting
         for i, (input_data, labels) in enumerate(self.thre_loader):
             input = input_data.float().to(self.device)
             output, series, prior, _ = self.model(input)
 
             loss = torch.mean(criterion(input, output), dim=-1)
+            test_losses.extend(loss.detach().cpu().numpy().tolist())
 
             series_loss = 0.0
             prior_loss = 0.0
@@ -322,6 +325,21 @@ class Solver(object):
             cri = cri.detach().cpu().numpy()
             attens_energy.append(cri)
             test_labels.append(labels)
+
+        # Check if test_labels are all zeros (no real labels)
+        test_labels_arr = np.concatenate(test_labels, axis=0).reshape(-1)
+        if np.all(test_labels_arr == 0):
+            print("No test labels found. Only plotting test loss.")
+            plt.figure(figsize=(12, 6))
+            plt.plot(test_losses, label='Test Loss (MSE)')
+            plt.xlabel('Test Window Index')
+            plt.ylabel('MSE Loss')
+            plt.title('Test Loss over Test Windows')
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig('test_loss.png')
+            print("Test loss plot saved as test_loss.png")
+            return
 
         attens_energy = np.concatenate(attens_energy, axis=0).reshape(-1)
         test_labels = np.concatenate(test_labels, axis=0).reshape(-1)
