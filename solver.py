@@ -328,17 +328,18 @@ class Solver(object):
 
         # Check if test_labels are all zeros (no real labels)
         test_labels_arr = np.concatenate(test_labels, axis=0).reshape(-1)
+        # Always plot test loss
+        plt.figure(figsize=(12, 6))
+        plt.plot(test_losses, label='Test Loss (MSE)')
+        plt.xlabel('Test Window Index')
+        plt.ylabel('MSE Loss')
+        plt.title('Test Loss over Test Windows')
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig('test_loss.png')
+        print("Test loss plot saved as test_loss.png")
         if np.all(test_labels_arr == 0):
             print("No test labels found. Only plotting test loss.")
-            plt.figure(figsize=(12, 6))
-            plt.plot(test_losses, label='Test Loss (MSE)')
-            plt.xlabel('Test Window Index')
-            plt.ylabel('MSE Loss')
-            plt.title('Test Loss over Test Windows')
-            plt.legend()
-            plt.tight_layout()
-            plt.savefig('test_loss.png')
-            print("Test loss plot saved as test_loss.png")
             return
 
         attens_energy = np.concatenate(attens_energy, axis=0).reshape(-1)
