@@ -243,6 +243,8 @@ class Solver(object):
                         series[u].detach()) * temperature
 
             metric = torch.softmax((-series_loss - prior_loss), dim=-1)
+            print("metric shape:", metric.shape)
+            print("loss shape:", loss.shape)
             cri = metric * loss
             cri = cri.detach().cpu().numpy()
             attens_energy.append(cri)
@@ -279,6 +281,8 @@ class Solver(object):
                         series[u].detach()) * temperature
             # Metric
             metric = torch.softmax((-series_loss - prior_loss), dim=-1)
+            print("metric shape:", metric.shape)
+            print("loss shape:", loss.shape)
             cri = metric * loss
             cri = cri.detach().cpu().numpy()
             attens_energy.append(cri)
