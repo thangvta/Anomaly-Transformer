@@ -292,12 +292,31 @@ class Solver(object):
         # (3) evaluation on the test set
         test_labels = []
         attens_energy = []
-        test_losses = []  # For plotting
+        test_losses = []  # For plotting per-window loss (legacy)
+        # For per-timestep loss
+        all_losses = np.zeros(self.thre_loader.dataset.test.shape[0])
+        counts = np.zeros(self.thre_loader.dataset.test.shape[0])
         for i, (input_data, labels) in enumerate(self.thre_loader):
             input = input_data.float().to(self.device)
             output, series, prior, _ = self.model(input)
 
-            loss = torch.mean(criterion(input, output), dim=-1)
+            # Compute per-timestep MSE loss
+            # input, output: [batch, win_size, features]
+            mse = torch.mean((input - output) ** 2, dim=-1)  # [batch, win_size]
+            mse_np = mse.detach().cpu().numpy()  # shape: [batch, win_size]
+            batch_size = mse_np.shape[0]
+            for b in range(batch_size):
+                start_idx = i * self.thre_loader.batch_size * self.win_size + b * self.win_size
+                end_idx = start_idx + self.win_size
+                # Clamp to test set length
+                if end_idx > all_losses.shape[0]:
+                    end_idx = all_losses.shape[0]
+                actual_win = end_idx - start_idx
+                all_losses[start_idx:end_idx] += mse_np[b, :actual_win]
+                counts[start_idx:end_idx] += 1
+
+            # For legacy per-window plot
+            loss = torch.mean(mse, dim=-1)  # mean over window for each batch
             test_losses.extend(loss.detach().cpu().numpy().tolist())
 
             series_loss = 0.0
@@ -390,5 +409,30 @@ class Solver(object):
             "Accuracy : {:0.4f}, Precision : {:0.4f}, Recall : {:0.4f}, F-score : {:0.4f} ".format(
                 accuracy, precision,
                 recall, f_score))
+
+        # After test loop, average overlapping losses
+        per_timestep_loss = np.zeros_like(all_losses)
+        mask = counts > 0
+        per_timestep_loss[mask] = all_losses[mask] / counts[mask]
+        # Plot per-timestep loss
+        plt.figure(figsize=(12, 6))
+        plt.plot(per_timestep_loss, label='Per-timestep Test Loss (MSE)')
+        plt.xlabel('Time Index')
+        plt.ylabel('MSE Loss')
+        plt.title('Per-timestep Test Loss over Time')
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig('test_loss_per_timestep.png')
+        print("Per-timestep test loss plot saved as test_loss_per_timestep.png")
+        # (Optional) keep legacy per-window plot
+        # plt.figure(figsize=(12, 6))
+        # plt.plot(test_losses, label='Test Loss (MSE) per Window')
+        # plt.xlabel('Test Window Index')
+        # plt.ylabel('MSE Loss')
+        # plt.title('Test Loss over Test Windows')
+        # plt.legend()
+        # plt.tight_layout()
+        # plt.savefig('test_loss.png')
+        # print("Test loss plot saved as test_loss.png")
 
         return accuracy, precision, recall, f_score
