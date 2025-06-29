@@ -27,7 +27,9 @@ class PSMSegLoader(object):
         self.scaler.fit(data)
         data = self.scaler.transform(data)
         test_data = pd.read_csv(data_path + '/test.csv')
-
+        
+        # Preserve timestamps from test data
+        self.test_timestamps = test_data.iloc[:, 0].values  # First column contains timestamps
         test_data = test_data.values[:, 1:]
         test_data = np.nan_to_num(test_data)
 
@@ -44,6 +46,7 @@ class PSMSegLoader(object):
 
         print("test:", self.test.shape)
         print("train:", self.train.shape)
+        print("test timestamps shape:", self.test_timestamps.shape)
 
     def __len__(self):
         """

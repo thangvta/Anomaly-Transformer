@@ -455,6 +455,14 @@ class Solver(object):
         num_samples = test_data.shape[0]
         feature_dim = test_data.shape[1]
         
+        # Get timestamps if available
+        timestamps = None
+        if hasattr(self.thre_loader.dataset, 'test_timestamps'):
+            timestamps = self.thre_loader.dataset.test_timestamps
+            print(f"Using timestamps from test data. Shape: {timestamps.shape}")
+        else:
+            print("No timestamps found, using sample indices")
+        
         # Process in batches to avoid memory issues
         batch_size = 64  # smaller batch size for individual samples
         all_sample_losses = []
@@ -490,12 +498,29 @@ class Solver(object):
         
         # Plot all sample losses
         plt.figure(figsize=(15, 6))
-        plt.plot(range(num_samples), all_sample_losses, label='Individual Sample Loss (MSE)', linewidth=0.8)
-        plt.xlabel('Test Sample Index')
+        
+        if timestamps is not None:
+            # Use actual timestamps for x-axis
+            x_axis = timestamps
+            x_label = 'Timestamp'
+            title_suffix = 'with Timestamps'
+        else:
+            # Fallback to sample indices
+            x_axis = range(num_samples)
+            x_label = 'Test Sample Index'
+            title_suffix = 'by Sample Index'
+        
+        plt.plot(x_axis, all_sample_losses, label='Individual Sample Loss (MSE)', linewidth=0.8)
+        plt.xlabel(x_label)
         plt.ylabel('MSE Loss')
-        plt.title(f'Loss for All {num_samples} Test Samples')
+        plt.title(f'Loss for All {num_samples} Test Samples ({title_suffix})')
         plt.legend()
         plt.grid(True, alpha=0.3)
+        
+        # Rotate x-axis labels if timestamps are long
+        if timestamps is not None and len(str(timestamps[0])) > 10:
+            plt.xticks(rotation=45)
+        
         plt.tight_layout()
         plt.savefig('all_test_samples_loss.png', dpi=300, bbox_inches='tight')
         print(f"All test samples loss plot saved as all_test_samples_loss.png")
@@ -504,6 +529,12 @@ class Solver(object):
         print(f"Min loss: {np.min(all_sample_losses):.6f}")
         print(f"Max loss: {np.max(all_sample_losses):.6f}")
         
-        # Also save the loss values to a file for further analysis
-        np.save('all_test_samples_loss.npy', np.array(all_sample_losses))
-        print("Loss values saved to all_test_samples_loss.npy")
+        # Also save the loss values and timestamps to a file for further analysis
+        save_data = {
+            'losses': np.array(all_sample_losses),
+            'num_samples': num_samples
+        }
+        if timestamps is not None:
+            save_data['timestamps'] = timestamps
+        np.save('all_test_samples_loss.npy', save_data)
+        print("Loss values and timestamps saved to all_test_samples_loss.npy")
