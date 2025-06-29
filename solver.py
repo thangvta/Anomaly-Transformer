@@ -214,6 +214,9 @@ class Solver(object):
 
         print("======================TEST MODE======================")
 
+        # First, plot loss for all individual test samples
+        self.plot_all_test_samples_loss()
+
         criterion = nn.MSELoss(reduce=False)
 
         # (1) stastic on the train set
@@ -442,3 +445,65 @@ class Solver(object):
         # print("Test loss plot saved as test_loss.png")
 
         return accuracy, precision, recall, f_score
+
+    def plot_all_test_samples_loss(self):
+        """Plot loss for all individual test samples without windowing"""
+        print("Computing loss for all individual test samples...")
+        
+        # Get the raw test data
+        test_data = self.thre_loader.dataset.test  # shape: [num_samples, features]
+        num_samples = test_data.shape[0]
+        feature_dim = test_data.shape[1]
+        
+        # Process in batches to avoid memory issues
+        batch_size = 64  # smaller batch size for individual samples
+        all_sample_losses = []
+        
+        self.model.eval()
+        with torch.no_grad():
+            for i in range(0, num_samples, batch_size):
+                end_idx = min(i + batch_size, num_samples)
+                batch_data = test_data[i:end_idx]
+                
+                # Convert to tensor and add batch dimension
+                batch_tensor = torch.FloatTensor(batch_data).unsqueeze(0).to(self.device)  # [1, batch_size, features]
+                
+                # Pad if necessary to match expected input size
+                if batch_tensor.shape[1] < self.win_size:
+                    # Pad with zeros or repeat the data
+                    padding = torch.zeros(1, self.win_size - batch_tensor.shape[1], feature_dim).to(self.device)
+                    batch_tensor = torch.cat([batch_tensor, padding], dim=1)
+                elif batch_tensor.shape[1] > self.win_size:
+                    # Truncate to window size
+                    batch_tensor = batch_tensor[:, :self.win_size, :]
+                
+                # Forward pass
+                output, _, _, _ = self.model(batch_tensor)
+                
+                # Compute MSE loss for each sample
+                mse_loss = torch.mean((batch_tensor - output) ** 2, dim=-1)  # [1, batch_size]
+                
+                # Extract the actual samples (remove padding if any)
+                actual_samples = min(batch_size, num_samples - i)
+                sample_losses = mse_loss[0, :actual_samples].cpu().numpy()
+                all_sample_losses.extend(sample_losses)
+        
+        # Plot all sample losses
+        plt.figure(figsize=(15, 6))
+        plt.plot(range(num_samples), all_sample_losses, label='Individual Sample Loss (MSE)', linewidth=0.8)
+        plt.xlabel('Test Sample Index')
+        plt.ylabel('MSE Loss')
+        plt.title(f'Loss for All {num_samples} Test Samples')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig('all_test_samples_loss.png', dpi=300, bbox_inches='tight')
+        print(f"All test samples loss plot saved as all_test_samples_loss.png")
+        print(f"Total test samples: {num_samples}")
+        print(f"Average loss: {np.mean(all_sample_losses):.6f}")
+        print(f"Min loss: {np.min(all_sample_losses):.6f}")
+        print(f"Max loss: {np.max(all_sample_losses):.6f}")
+        
+        # Also save the loss values to a file for further analysis
+        np.save('all_test_samples_loss.npy', np.array(all_sample_losses))
+        print("Loss values saved to all_test_samples_loss.npy")
