@@ -344,7 +344,9 @@ class Solver(object):
                         series[u].detach()) * temperature
             metric = torch.softmax((-series_loss - prior_loss), dim=-1)
 
-            cri = metric * loss
+            # Use per-timestep loss to match metric shape
+            loss_per_timestep = mse  # [batch, win_size]
+            cri = metric * loss_per_timestep
             cri = cri.detach().cpu().numpy()
             attens_energy.append(cri)
             test_labels.append(labels)
